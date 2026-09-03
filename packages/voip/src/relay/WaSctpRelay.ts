@@ -149,12 +149,18 @@ export class WaSctpRelay extends EventEmitter {
     }
 
     setParticipantIds(selfPid?: number, peerPid?: number): void {
-        this.selfPid = selfPid ?? 0
-        this.peerPid = peerPid ?? 0
+        const nextSelfPid = selfPid ?? 0
+        const nextPeerPid = peerPid ?? 0
+        const changed = nextSelfPid !== this.selfPid || nextPeerPid !== this.peerPid
+        this.selfPid = nextSelfPid
+        this.peerPid = nextPeerPid
         this.logger.debug('sctp participant ids set', {
             selfPid: this.selfPid,
             peerPid: this.peerPid
         })
+        if (changed && this.selfPid && this.peerPid && this.hasConnection()) {
+            this.resendSubscriptions()
+        }
     }
 
     resendSubscriptions(): void {
@@ -1065,6 +1071,8 @@ export class WaSctpRelay extends EventEmitter {
         this.subscriptionSsrc = 0
         this.selfStreamSsrcs = []
         this.peerStreamSsrcs = []
+        this.selfPid = 0
+        this.peerPid = 0
         this.pongCount = 0
         this.rtpRecvCount = 0
         this.unknownRecvCount = 0
