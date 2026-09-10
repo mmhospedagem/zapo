@@ -190,6 +190,7 @@ export class WaCallManager extends EventEmitter {
         }
 
         const callCreator = nodeInfo.innerNode.attrs?.['call-creator'] || peerJid
+        const callerPn = nodeInfo.innerNode.attrs?.['caller_pn']
         const isVideo = hasNodeChild(nodeInfo.innerNode, 'video')
 
         const callKey = await decryptCallKey(
@@ -204,7 +205,7 @@ export class WaCallManager extends EventEmitter {
         )
 
         const mediaType = isVideo ? CallMediaType.Video : CallMediaType.Audio
-        const info = CallInfo.newIncoming(callId, peerJid, callCreator, undefined, mediaType)
+        const info = CallInfo.newIncoming(callId, peerJid, callCreator, callerPn, mediaType)
 
         if (callKey) {
             info.encryptionKey = callKey
@@ -228,7 +229,7 @@ export class WaCallManager extends EventEmitter {
             try {
                 const creds = this.deps.authClient.getCurrentCredentials()
                 const selfLid = creds?.meLid || creds?.meJid || ''
-                await session.initMedia(selfLid, peerJid)
+                await session.initMedia(selfLid, callerPn || peerJid)
                 await session.sendIncomingPreaccept(peerJid)
                 await session.sendIncomingRelayLatency()
             } catch (err) {
@@ -463,7 +464,7 @@ export class WaCallManager extends EventEmitter {
         const creds = this.deps.authClient.getCurrentCredentials()
         const selfLid = creds?.meLid || creds?.meJid || ''
 
-        await session.initMedia(selfLid, session.info.peerJid)
+        await session.initMedia(selfLid, session.info.callerPn || session.info.peerJid)
         await session.sendIncomingPreaccept(session.info.peerJid)
         await session.sendIncomingRelayLatency()
 
