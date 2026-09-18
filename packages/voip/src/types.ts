@@ -166,8 +166,10 @@ export interface CallOfferOptions {
     /** Bare or device JID to call. */
     peerJid: string
     /**
-     * Flag the call as video in the signaling stanzas (default `false`). Video
-     * media encode/transport is not implemented; only audio media flows.
+     * Flag the call as a video call (default `false`). When set, H.264 video
+     * media flows alongside audio: send access units with
+     * {@link WaVoipCoordinator.feedLiveVideo} and receive inbound frames via the
+     * `voip_call_inbound_video` event.
      */
     isVideo?: boolean
     /** Audio file to preload and play once the call connects (needs ffmpeg). */
