@@ -265,6 +265,16 @@ test('buildCommsConfig rejects mobile proxies the raw TCP tunnel cannot honour',
     )
     httpsProxyAgent.destroy()
 
+    const malformedCredentialAgent = Object.assign(new http.Agent(), {
+        proxy: new URL('http://user:pa%ss@127.0.0.1:3128')
+    })
+    await assert.rejects(buildMobileCommsConfig(malformedCredentialAgent), (error: unknown) => {
+        assert.match(String(error), /proxy url password contains a malformed percent escape/)
+        assert.doesNotMatch(String(error), /pa%ss/)
+        return true
+    })
+    malformedCredentialAgent.destroy()
+
     const plainAgent = new http.Agent()
     await assert.rejects(buildMobileCommsConfig(plainAgent), /exposes no proxy url/)
     plainAgent.destroy()

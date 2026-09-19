@@ -44,7 +44,12 @@ export function toProxyAgent(proxy: WaProxyTransport | undefined): WaProxyAgent 
     return proxy
 }
 
-/** HTTP CONNECT endpoint a raw TCP transport dials to reach its destination. */
+/**
+ * HTTP CONNECT endpoint a raw TCP transport dials to reach its destination.
+ *
+ * @sensitive Contains proxy credentials (`authorization`). Never log, serialize
+ * via `JSON.stringify`, or transmit unencrypted. Persist with encryption-at-rest.
+ */
 export interface WaTcpProxyEndpoint {
     readonly hostname: string
     readonly port: number
@@ -84,8 +89,8 @@ export function toTcpProxyEndpoint(
             `proxy protocol ${url.protocol} is not supported by the raw TCP tunnel – ${TCP_PROXY_HINT}`
         )
     }
-    const username = decodeURIComponent(url.username)
-    const password = decodeURIComponent(url.password)
+    const username = decodeProxyUserInfo(url.username, 'username')
+    const password = decodeProxyUserInfo(url.password, 'password')
     return {
         hostname: url.hostname,
         port: url.port ? Number(url.port) : 80,
@@ -99,6 +104,20 @@ export function toTcpProxyEndpoint(
 /** Throws when {@link toTcpProxyEndpoint} cannot honour `proxy`. */
 export function assertTcpProxySupported(proxy: WaProxyTransport | undefined): void {
     toTcpProxyEndpoint(proxy)
+}
+
+/**
+ * Decodes one userinfo component of a proxy url. `new URL()` keeps invalid
+ * percent escapes verbatim, so a credential holding a literal `%` would reach
+ * `decodeURIComponent` and throw a bare `URIError`. The value never reaches the
+ * message – only the field name does.
+ */
+function decodeProxyUserInfo(value: string, field: 'username' | 'password'): string {
+    try {
+        return decodeURIComponent(value)
+    } catch {
+        throw new Error(`proxy url ${field} contains a malformed percent escape`)
+    }
 }
 
 /**
