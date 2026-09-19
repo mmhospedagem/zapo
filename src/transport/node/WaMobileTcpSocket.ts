@@ -1,13 +1,14 @@
 import { connect as netConnect, type Socket as NetSocket } from 'node:net'
 
 import { WA_READY_STATES } from '@protocol/constants'
+import { toTcpProxyEndpoint } from '@transport/proxy'
 import type {
     RawWebSocket,
     RawWebSocketConstructor,
     WaRawWebSocketInit,
     WebSocketEventLike
 } from '@transport/types'
-import { bytesToBase64, concatBytes, TEXT_DECODER, TEXT_ENCODER } from '@util/bytes'
+import { concatBytes, TEXT_DECODER, TEXT_ENCODER } from '@util/bytes'
 
 /**
  * `RawWebSocket`-shaped adapter over a raw Node TCP socket. Used by the
@@ -30,12 +31,12 @@ export class WaMobileTcpSocket implements RawWebSocket {
 
     public constructor(url: string, _protocols?: unknown, options?: WaRawWebSocketInit) {
         const { host, port } = parseTcpUrl(url)
-        const proxy = resolveHttpProxy(options?.agent)
+        const proxy = toTcpProxyEndpoint(options?.agent)
         this.socket = proxy
             ? netConnect({ host: proxy.hostname, port: proxy.port })
             : netConnect({ host, port })
 
-        let tunnelReady = proxy === null
+        let tunnelReady = !proxy
         let proxyResponse: Uint8Array = new Uint8Array(0)
 
         this.socket.on('connect', () => {
@@ -58,12 +59,14 @@ export class WaMobileTcpSocket implements RawWebSocket {
             if (!tunnelReady && proxy) {
                 proxyResponse = concatBytes([proxyResponse, chunk])
                 const headerEnd = findHttpHeaderEnd(proxyResponse)
+                const scanned = headerEnd === -1 ? proxyResponse.byteLength : headerEnd
+                if (scanned > MAX_PROXY_HEADER_BYTES) {
+                    this.socket.destroy(
+                        new Error('WaMobileTcpSocket: proxy response headers too large')
+                    )
+                    return
+                }
                 if (headerEnd === -1) {
-                    if (proxyResponse.byteLength > 65_536) {
-                        this.socket.destroy(
-                            new Error('WaMobileTcpSocket: proxy response headers too large')
-                        )
-                    }
                     return
                 }
                 const statusLine = TEXT_DECODER.decode(proxyResponse.subarray(0, headerEnd)).split(
@@ -150,31 +153,8 @@ export class WaMobileTcpSocket implements RawWebSocket {
     }
 }
 
-interface ResolvedHttpProxy {
-    readonly hostname: string
-    readonly port: number
-    readonly authorization?: string
-}
-
-function resolveHttpProxy(agent: WaRawWebSocketInit['agent']): ResolvedHttpProxy | null {
-    const value = (agent as unknown as { readonly proxy?: URL | string } | undefined)?.proxy
-    if (value === undefined) return null
-    const proxy = value instanceof URL ? value : new URL(value)
-    if (proxy.protocol !== 'http:') {
-        throw new Error(`WaMobileTcpSocket: unsupported proxy protocol ${proxy.protocol}`)
-    }
-    const username = decodeURIComponent(proxy.username)
-    const password = decodeURIComponent(proxy.password)
-    const authorization =
-        username || password
-            ? `Basic ${bytesToBase64(TEXT_ENCODER.encode(`${username}:${password}`))}`
-            : undefined
-    return {
-        hostname: proxy.hostname,
-        port: proxy.port ? Number(proxy.port) : 80,
-        authorization
-    }
-}
+/** Cap on the CONNECT response headers buffered before the tunnel is rejected. */
+const MAX_PROXY_HEADER_BYTES = 65_536
 
 function findHttpHeaderEnd(bytes: Uint8Array): number {
     for (let i = 3; i < bytes.byteLength; i += 1) {
