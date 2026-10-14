@@ -198,6 +198,48 @@ test('padding helpers add random padding and reverse pkcs7', async () => {
     assert.throws(() => unpadPkcs7(new Uint8Array([])), /empty bytes/)
 })
 
+test('interactive fanout and companions survive wrappers without forcing native-flow versions', () => {
+    const message: Proto.IMessage = {
+        interactiveMessage: {
+            body: { text: 'Escolha uma opção' },
+            nativeFlowMessage: {
+                buttons: [
+                    {
+                        name: 'quick_reply',
+                        buttonParamsJson: '{"display_text":"Ajuda","id":"help"}'
+                    }
+                ]
+            }
+        },
+        messageContextInfo: { messageSecret: new Uint8Array(32).fill(7) }
+    }
+    const wrapped = wrapDeviceSentMessage(message, '5511@s.whatsapp.net')
+    const decoded = proto.Message.decode(proto.Message.encode(wrapped).finish())
+    assert.deepEqual(
+        Array.from(decoded.messageContextInfo?.messageSecret ?? []),
+        Array.from(message.messageContextInfo?.messageSecret ?? [])
+    )
+    assert.deepEqual(
+        Array.from(decoded.deviceSentMessage?.message?.messageContextInfo?.messageSecret ?? []),
+        Array.from(message.messageContextInfo?.messageSecret ?? [])
+    )
+    assert.equal(resolveOutboundMessageAttrs(decoded).deviceFanout, 'false')
+    assert.equal(
+        resolveOutboundMessageAttrs({ ephemeralMessage: { message } }).deviceFanout,
+        'false'
+    )
+    assert.equal(resolveOutboundMessageAttrs({ conversation: 'hello' }).deviceFanout, undefined)
+    assert.equal(message.interactiveMessage?.nativeFlowMessage?.messageVersion, undefined)
+    assert.equal(message.interactiveMessage?.nativeFlowMessage?.messageParamsJson, undefined)
+    assert.equal(
+        resolveButtonAddonKind({ interactiveMessage: { carouselMessage: {} } }),
+        'interactive'
+    )
+    assert.equal(resolveButtonAddonKind({ buttonsResponseMessage: {} }), 'buttons_response')
+    assert.equal(resolveButtonAddonKind({ listResponseMessage: {} }), 'list_response')
+    assert.equal(resolveButtonAddonKind({ interactiveResponseMessage: {} }), 'interactive_response')
+})
+
 test('resolveOutboundMessageAttrs matches the individual resolvers', () => {
     const corpus: Proto.IMessage[] = [
         { conversation: 'texto simples' },

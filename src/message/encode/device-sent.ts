@@ -27,10 +27,7 @@ export function wrapDeviceSentMessage(
         },
         deviceSentMessage: {
             destinationJid,
-            message: {
-                ...message,
-                messageContextInfo: undefined
-            }
+            message
         }
     }
 }

@@ -233,16 +233,17 @@ export function restrictGroupHistoryTargets(
 
 /**
  * Resolves the stanza `type` and `enc.mediatype` of an outbound message. A
- * `<biz>` companion rides a type=text stanza with no mediatype, except on a
- * group list: there the server nacks with 479 (SMAX_INVALID) unless
- * type=media, mediatype=list and `<biz><list>` travel together.
+ * `<biz>` companion rides a type=text stanza with no mediatype, except on
+ * lists and responses, which retain their media type on direct and group sends.
  */
 export function resolveOutboundStanzaShape(
     attrs: Pick<WaOutboundMessageAttrs, 'buttonAddonKind' | 'typeAttr' | 'mediatype'>,
-    isGroup: boolean
+    _isGroup: boolean
 ): { readonly type: string; readonly mediatype: string | undefined } {
     const flattensForAddon =
-        attrs.buttonAddonKind !== null && !(isGroup && attrs.buttonAddonKind === 'list')
+        attrs.buttonAddonKind === 'interactive' ||
+        attrs.buttonAddonKind === 'payment_info' ||
+        attrs.buttonAddonKind === 'order_details'
     if (flattensForAddon) {
         return { type: 'text', mediatype: undefined }
     }
@@ -654,6 +655,15 @@ export class WaMessageDispatchCoordinator {
 
         const plaintext = await writeRandomPadMax16(proto.Message.encode(messageWithIcdc).finish())
         const outboundAttrs = resolveOutboundMessageAttrs(messageWithIcdc)
+        if (outboundAttrs.deviceFanout) {
+            sendOptions = {
+                ...sendOptions,
+                additionalAttributes: {
+                    device_fanout: outboundAttrs.deviceFanout,
+                    ...sendOptions.additionalAttributes
+                }
+            }
+        }
         const buttonAddonKind = outboundAttrs.buttonAddonKind
         const buttonAddonNode = buttonAddonKind ? buildButtonAddonNode(buttonAddonKind) : undefined
         const { type, mediatype } = resolveOutboundStanzaShape(outboundAttrs, isGroup)

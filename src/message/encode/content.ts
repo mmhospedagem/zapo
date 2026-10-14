@@ -437,7 +437,14 @@ function resolveEncMediaTypeFrom(msg: Proto.IMessage): string | null {
 }
 
 /** Companion business node kind for list and native-flow messages. */
-export type WaButtonAddonKind = 'list' | 'interactive' | 'payment_info' | 'order_details'
+export type WaButtonAddonKind =
+    | 'list'
+    | 'interactive'
+    | 'payment_info'
+    | 'order_details'
+    | 'buttons_response'
+    | 'list_response'
+    | 'interactive_response'
 
 export function resolveButtonAddonKind(message: Proto.IMessage): WaButtonAddonKind | null {
     return resolveButtonAddonKindFrom(unwrapMessage(message))
@@ -455,6 +462,10 @@ function resolveNativeFlowAddonKind(
 function resolveButtonAddonKindFrom(msg: Proto.IMessage): WaButtonAddonKind | null {
     if (msg.listMessage) return 'list'
     if (msg.buttonsMessage) return 'interactive'
+    if (msg.buttonsResponseMessage) return 'buttons_response'
+    if (msg.listResponseMessage) return 'list_response'
+    if (msg.interactiveResponseMessage) return 'interactive_response'
+    if (msg.interactiveMessage?.carouselMessage) return 'interactive'
     const nativeFlow = msg.interactiveMessage?.nativeFlowMessage
     if (nativeFlow) return resolveNativeFlowAddonKind(nativeFlow)
     return null
@@ -467,6 +478,7 @@ export interface MessageMetaAttrs {
 }
 
 export interface WaOutboundMessageAttrs {
+    readonly deviceFanout?: 'false'
     readonly buttonAddonKind: WaButtonAddonKind | null
     readonly typeAttr: string
     readonly edit: string | null
@@ -484,6 +496,7 @@ export interface WaOutboundMessageAttrs {
 export function resolveOutboundMessageAttrs(message: Proto.IMessage): WaOutboundMessageAttrs {
     const msg = unwrapMessage(message)
     return {
+        deviceFanout: msg.interactiveMessage ? 'false' : undefined,
         buttonAddonKind: resolveButtonAddonKindFrom(msg),
         typeAttr: resolveMessageTypeAttrFrom(msg),
         edit: resolveEditAttrFrom(msg),

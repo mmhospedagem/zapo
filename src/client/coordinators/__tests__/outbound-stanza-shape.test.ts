@@ -18,8 +18,8 @@ function shapeOf(message: Proto.IMessage, isGroup: boolean) {
     return resolveOutboundStanzaShape(resolveOutboundMessageAttrs(message), isGroup)
 }
 
-test('resolveOutboundStanzaShape keeps a direct list flat next to its <biz> companion', () => {
-    assert.deepEqual(shapeOf(LIST, false), { type: 'text', mediatype: undefined })
+test('resolveOutboundStanzaShape keeps type=media and mediatype=list on a direct list', () => {
+    assert.deepEqual(shapeOf(LIST, false), { type: 'media', mediatype: 'list' })
 })
 
 test('resolveOutboundStanzaShape keeps type=media and mediatype=list on a group list', () => {
